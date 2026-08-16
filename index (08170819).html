@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>用度環境課共有シート</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@600;700&family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root{
+  --paper:#EAEDE3;
+  --paper-raised:#F6F8F0;
+  --ink:#202B22;
+  --ink-soft:#5C6A5C;
+  --line:#CBD2BE;
+  --line-soft:#DCE1D3;
+  --brass:#B8862E;
+  --brass-soft:#E8D8B4;
+  --teal:#2F6F6B;
+  --teal-soft:#D6E6E3;
+  --olive:#5B7A43;
+  --olive-soft:#DEE7CF;
+  --alert:#AE4A3B;
+  --alert-soft:#F1D9D2;
+  --gray:#8B9188;
+  --gray-soft:#E4E6DE;
+}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;height:100%;}
+body{background:var(--paper);color:var(--ink);font-family:'Noto Sans JP',sans-serif;line-height:1.55;overflow:hidden;}
+h1,h2,h3{font-family:'Zen Old Mincho',serif;font-weight:700;margin:0;}
+.eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;color:var(--ink-soft);text-transform:uppercase;}
+
+/* ---------- app shell ---------- */
+.app{height:100vh;display:flex;flex-direction:column;}
+.topbar{flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 24px;background:var(--paper-raised);border-bottom:1px solid var(--line);flex-wrap:wrap;}
+.topbar-left{display:flex;align-items:center;gap:14px;min-width:0;flex-wrap:wrap;}
+.topbar-right{display:flex;align-items:center;gap:8px;flex:0 0 auto;}
+.topbar-right select{font-family:'JetBrains Mono',monospace;font-size:12px;border:1px solid var(--line);background:var(--paper);border-radius:3px;padding:6px 8px;}
+
+.nav-tabs{display:flex;gap:3px;background:var(--paper);border:1px solid var(--line);border-radius:20px;padding:3px;flex:0 0 auto;}
+.nav-tab{font-family:'JetBrains Mono',monospace;font-size:12.5px;border:none;background:transparent;color:var(--ink-soft);padding:6px 14px;border-radius:16px;cursor:pointer;}
+.nav-tab:hover{color:var(--ink);}
+.nav-tab.active{background:var(--ink);color:var(--paper-raised);}
+.nav-tab:focus-visible{outline:2px solid var(--brass);outline-offset:2px;}
+
+.breadcrumb{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--ink-soft);display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;white-space:nowrap;}
+.breadcrumb button.crumb-link{background:none;border:none;color:var(--ink-soft);font-family:inherit;font-size:inherit;cursor:pointer;padding:0;text-decoration:underline;}
+.breadcrumb button.crumb-link:hover{color:var(--ink);}
+.breadcrumb .crumb-current{color:var(--ink);font-weight:500;overflow:hidden;text-overflow:ellipsis;}
+
+.content{flex:1 1 auto;display:flex;flex-direction:column;overflow:hidden;min-height:0;padding:18px 26px 24px;}
+.view-header{flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+.view-body{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;min-height:0;}
+
+.btn{font-family:'Noto Sans JP',sans-serif;font-size:13px;font-weight:500;border:1px solid var(--ink);background:var(--ink);color:var(--paper-raised);border-radius:3px;padding:7px 14px;cursor:pointer;white-space:nowrap;}
+.btn:hover{opacity:0.85;}
+.btn:focus-visible{outline:2px solid var(--brass);outline-offset:2px;}
+.btn-ghost{background:transparent;color:var(--ink);border:1px solid var(--line);}
+.btn-ghost:hover{border-color:var(--ink);}
+.btn-sm{font-size:12px;padding:5px 10px;}
+
+textarea{width:100%;font-family:'Noto Sans JP',sans-serif;font-size:14px;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:3px;padding:10px 12px;resize:vertical;}
+textarea:focus,input:focus,select:focus{outline:2px solid var(--brass);outline-offset:1px;}
+input[type=text]{font-family:'Noto Sans JP',sans-serif;font-size:13px;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:3px;padding:8px 10px;}
+
+.empty-state{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ink-soft);padding:14px 0;}
+
+/* ---------- modal ---------- */
+.modal-overlay{position:fixed;inset:0;background:rgba(32,43,34,0.35);display:flex;align-items:center;justify-content:center;z-index:50;}
+.modal-box{background:var(--paper-raised);border:1px solid var(--line);border-radius:6px;padding:22px;width:340px;max-width:90vw;display:flex;flex-direction:column;gap:12px;}
+.modal-box h3{font-size:17px;}
+.modal-box select{font-family:'Noto Sans JP',sans-serif;font-size:13px;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:3px;padding:8px 10px;}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;}
+
+/* ---------- members / project list ---------- */
+.members-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+.member-chip{display:flex;align-items:center;gap:2px;font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--paper);border:1px solid var(--line);border-radius:20px;padding:4px 6px 4px 10px;}
+.member-chip input{border:none;background:transparent;font-family:'JetBrains Mono',monospace;font-size:12px;width:70px;color:var(--ink);}
+.member-chip input:focus{outline:none;}
+.member-remove{background:none;border:none;cursor:pointer;color:var(--ink-soft);font-size:13px;line-height:1;padding:2px 4px;border-radius:50%;}
+.member-remove:hover{color:var(--alert);background:var(--alert-soft);}
+
+.project-grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(230px,1fr));gap:14px;}
+.project-card{position:relative;background:var(--paper-raised);border:1px solid var(--line);border-radius:4px;padding:16px 16px 14px;cursor:pointer;}
+.project-card:hover{border-color:var(--brass);}
+.project-card.completed{background:var(--olive-soft);border-color:var(--olive);}
+.project-card.completed .eyebrow{color:var(--olive);}
+.project-card h3{font-size:17px;margin:4px 0 10px;line-height:1.3;}
+.card-del{position:absolute;top:8px;right:8px;background:none;border:none;cursor:pointer;color:var(--ink-soft);font-size:15px;padding:2px 6px;border-radius:3px;}
+.card-del:hover{color:var(--alert);background:var(--alert-soft);}
+.card-stats{display:flex;gap:10px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-soft);margin-bottom:8px;}
+.card-stats .dot{display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:4px;vertical-align:middle;}
+.card-footer{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-soft);border-top:1px solid var(--line-soft);padding-top:8px;}
+
+/* ---------- project detail ---------- */
+.project-name-input{font-family:'Zen Old Mincho',serif;font-size:22px;font-weight:700;color:var(--ink);background:transparent;border:none;border-bottom:1px solid transparent;padding:2px 0;width:100%;}
+.project-name-input:hover,.project-name-input:focus{border-bottom:1px solid var(--line);outline:none;}
+.detail-block{margin-bottom:22px;max-width:760px;}
+.detail-block h4{font-size:14px;margin-bottom:8px;font-family:'Zen Old Mincho',serif;}
+#projOverview{min-height:120px;}
+.section-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;flex-wrap:wrap;gap:8px;}
+.gauge{margin-bottom:12px;}
+.gauge-ticks{display:flex;gap:3px;height:17px;align-items:flex-end;max-width:400px;}
+.tick{flex:1;max-width:12px;height:100%;border-radius:2px;opacity:0.9;}
+.tick.status-todo{background:var(--gray);}
+.tick.status-doing{background:var(--teal);}
+.tick.status-done{background:var(--olive);}
+.tick.status-blocked{background:var(--alert);}
+.tick.empty{background:var(--line-soft);}
+.gauge-legend{display:flex;gap:14px;margin-top:6px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-soft);}
+.legend-dot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;vertical-align:middle;}
+
+/* ---------- task rows ---------- */
+.task-row{display:flex;align-items:center;gap:10px;background:var(--paper-raised);border:1px solid var(--line);border-radius:4px;padding:9px 12px;margin-bottom:8px;cursor:pointer;max-width:760px;}
+.task-row:hover{border-color:var(--brass);}
+.task-row .status-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;}
+.task-row .task-main{flex:1 1 auto;min-width:0;}
+.task-row .task-title{font-size:13.5px;color:var(--ink);}
+.task-row .task-meta{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--ink-soft);display:flex;gap:8px;flex-wrap:wrap;margin-top:2px;}
+.task-row .row-del{flex:0 0 auto;}
+.del-btn{background:none;border:none;cursor:pointer;color:var(--ink-soft);font-size:15px;line-height:1;padding:2px 6px;border-radius:3px;}
+.del-btn:hover{color:var(--alert);background:var(--alert-soft);}
+
+/* ---------- report composer ---------- */
+.report-composer{background:var(--paper-raised);border:1px solid var(--line);border-radius:4px;padding:10px 12px;margin-bottom:14px;display:flex;flex-direction:column;gap:8px;max-width:640px;}
+.report-composer .composer-row{display:flex;gap:8px;flex-wrap:wrap;}
+.report-composer select{font-family:'JetBrains Mono',monospace;font-size:12px;border:1px solid var(--line);background:var(--paper);border-radius:3px;padding:6px 8px;}
+.report-composer textarea{min-height:50px;}
+.composer-actions{display:flex;justify-content:flex-end;}
+
+/* ---------- report rows ---------- */
+.report-row{position:relative;display:flex;gap:10px;align-items:flex-start;background:var(--paper-raised);border:1px solid var(--line);border-left:3px solid var(--brass);border-radius:0 4px 4px 0;padding:9px 12px;margin-bottom:9px;cursor:pointer;max-width:640px;}
+.report-row:hover{border-color:var(--brass);}
+.report-row.all-read{background:var(--olive-soft);border-color:var(--olive);border-left-color:var(--olive);}
+.report-row.all-read .read-badge{color:var(--olive);}
+.report-row-main{flex:1 1 auto;min-width:0;}
+.report-row-head{display:flex;gap:8px;align-items:baseline;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--ink-soft);margin-bottom:3px;flex-wrap:wrap;}
+.report-row-head .author{color:var(--ink);font-weight:500;}
+.report-row-head .read-badge{margin-left:auto;}
+.report-row-preview{font-size:13px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+.row-del{flex:0 0 auto;}
+
+/* ---------- report detail ---------- */
+.report-detail{background:var(--paper-raised);border:1px solid var(--line);border-left:3px solid var(--brass);border-radius:0 4px 4px 0;padding:16px 18px;max-width:640px;}
+.report-detail-head{display:flex;gap:10px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-soft);margin-bottom:8px;align-items:center;}
+.report-detail-head .author{color:var(--ink);font-weight:500;}
+.report-detail-body{font-size:14.5px;white-space:pre-wrap;margin-bottom:14px;}
+.read-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:14px;}
+.read-chip{font-family:'JetBrains Mono',monospace;font-size:11px;border-radius:20px;padding:3px 10px;border:1px solid var(--line);background:var(--paper);color:var(--ink-soft);cursor:default;}
+.read-chip.read{background:var(--olive-soft);border-color:var(--olive);color:var(--olive);}
+.read-chip.me{cursor:pointer;}
+.read-chip.me:hover{border-color:var(--brass);}
+.read-chip.me:focus-visible{outline:2px solid var(--brass);outline-offset:2px;}
+.comments{border-top:1px solid var(--line-soft);padding-top:10px;}
+.comment{padding:6px 0;}
+.comment-meta{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--ink-soft);}
+.comment-body{font-size:13.5px;margin-top:1px;}
+.comment-form{display:flex;gap:8px;margin-top:10px;}
+.comment-form input{flex:1;font-size:13px;}
+.detail-actions{display:flex;justify-content:flex-end;margin-top:14px;}
+
+.loading{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ink-soft);padding:20px;text-align:center;}
+
+/* ---------- 保存状態トースト ---------- */
+.toast{
+  position:fixed;left:50%;bottom:24px;transform:translateX(-50%);
+  display:none;align-items:center;gap:8px;
+  font-family:'JetBrains Mono',monospace;font-size:12.5px;
+  padding:10px 18px;border-radius:20px;
+  border:1px solid var(--line);background:var(--paper-raised);color:var(--ink);
+  box-shadow:0 4px 14px rgba(32,43,34,0.15);
+  z-index:100;max-width:80vw;text-align:center;
+}
+.toast-loading{border-color:var(--line);color:var(--ink-soft);}
+.toast-success{background:var(--olive-soft);border-color:var(--olive);color:var(--olive);}
+.toast-error{background:var(--alert-soft);border-color:var(--alert);color:var(--alert);}
+
+@media (max-width:900px){
+  html,body{height:auto;overflow:auto;}
+  .app{height:auto;}
+  .content{overflow:visible;}
+  .view-body{overflow:visible;}
+}
+
+@media (prefers-reduced-motion:no-preference){
+  .btn,.del-btn,.project-card,.report-row,.task-row,.nav-tab,textarea,input,select{transition:border-color .15s ease, background .15s ease, opacity .15s ease, color .15s ease;}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="topbar-left" id="topbarLeft"></div>
+    <div class="topbar-right">
+      <span class="eyebrow">あなたは</span>
+      <select id="identitySelect"></select>
+    </div>
+  </div>
+  <div class="content">
+    <div class="view-header" id="viewHeader"></div>
+    <div class="view-body" id="viewBody"><div class="loading">読み込み中…</div></div>
+  </div>
+</div>
+<div id="modalRoot"></div>
+
+<script>
+const STATUS = [
+  {key:'todo', label:'未着手', cls:'status-todo', var:'gray'},
+  {key:'doing', label:'進行中', cls:'status-doing', var:'teal'},
+  {key:'done', label:'完了', cls:'status-done', var:'olive'},
+  {key:'blocked', label:'課題あり', cls:'status-blocked', var:'alert'},
+];
+
+/* Google Apps Script Webアプリ(プロジェクト・タスク・報告事項・メンバー・確認状態をすべてここに保存) */
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbywFEXiC8S3SVhEMi51vdoVV6pGlxXWG8C2oAqUTBc73HyVijcnfbrw_7stno8otAY4IA/exec';
+const IDENTITY_STORAGE_KEY = 'teamBoardIdentity';
+
+let members = [];       // [{id, name, status}] ※GASの「メンバー」シート
+let projects = [];      // [{id, name, startDate, overview}] ※GASの「プロジェクト」シート
+let tasks = [];         // [{id, projectId, title, assignee, status, due, memo}] ※GASの「タスク」シート
+let reports = [];       // [{id, timestamp, author, content}] ※GASの「報告内容」シート
+let confirmLogs = [];   // [{id, reportId, confirmedBy, confirmedAt, type, memo}] ※GASの「確認ログ」シート(履歴・追記専用)
+let confirmStates = []; // [{reportId, confirmedBy, status}] ※GASの「確認状態」シート(現在の確認済み/未確認)
+let identity = '';      // localStorageのみ。GASには送信しない
+
+/* 'dashboard' | 'project' | 'reports-list' | 'reports-detail' */
+let view = 'dashboard';
+let currentProjectId = null;
+let currentReportId = null;
+
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function escapeAttr(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
+function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function computeDays(startDate){ const start=new Date(startDate); const now=new Date(); return Math.max(0, Math.floor((now-start)/86400000)); }
+// GASから返る日時は "yyyy-MM-dd HH:mm:ss" の整形済み文字列なのでそのまま表示する(数値のepochが渡された場合は従来通り整形する)
+function fmtTs(ts){
+  if(typeof ts === 'string') return ts;
+  const d=new Date(ts); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+function activeMembers(){ return members.filter(m => m.status === '有効'); }
+
+/* ---------- 保存状態トースト ---------- */
+function showToast(message, type){ // type: 'loading' | 'success' | 'error'
+  let toast = document.getElementById('toast');
+  if(!toast){
+    toast = document.createElement('div');
+    toast.id = 'toast';
+    document.body.appendChild(toast);
+  }
+  toast.className = 'toast toast-' + type;
+  toast.textContent = message;
+  toast.style.display = 'flex';
+  clearTimeout(toast._hideTimer);
+  if(type !== 'loading'){
+    toast._hideTimer = setTimeout(() => { toast.style.display = 'none'; }, type === 'error' ? 9000 : 2200);
+  }
+}
+function hideToast(){ const toast = document.getElementById('toast'); if(toast) toast.style.display = 'none'; }
+
+/* ---------- Google Apps Script 通信(共通ヘルパー) ---------- */
+async function gasGet(action){
+  const res = await fetch(`${GAS_URL}?action=${action}`, { method:'GET' });
+  if(!res.ok) throw new Error('HTTPエラー ' + res.status);
+  const data = await res.json();
+  if(data.success !== true) throw new Error(data.error || '取得に失敗しました');
+  return data;
+}
+async function gasPost(payload){
+  const res = await fetch(GAS_URL, {
+    method: 'POST',
+    // text/plain にすることでブラウザのプリフライト(CORS)を回避する
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload)
+  });
+  if(!res.ok) throw new Error('HTTPエラー ' + res.status);
+  const data = await res.json();
+  if(data.success !== true) throw new Error(data.error || '保存に失敗しました');
+  return data;
+}
+
+// 実際のエラー内容を画面に表示するための一時的な調査用ヘルパー
+// (TypeError: fetch自体が失敗 / HTTPエラー / GASが返したerror、を区別して表示する)
+function describeError_(err){
+  if(err && err.name === 'TypeError'){
+    return `TypeError: ${err.message}(fetch自体が失敗しています。index.htmlをfile://で直接開いている場合、ブラウザのCORS制限によりGASと通信できません。ローカルサーバー等のhttp(s)環境で開いて再度お試しください)`;
+  }
+  return (err && err.message) ? err.message : String(err);
+}
+
+/* GASの listAll を呼び、全グローバル配列を最新の状態に置き換える。
+   保存・削除・確認操作が成功した直後は必ずこれを呼び、
+   ローカル配列を手動で書き換えるのではなくスプレッドシートの実データで再描画する。 */
+async function refetchAll(){
+  const data = await gasGet('listAll');
+  members = (data.members || []).map(m => ({ id:String(m.id), name:m.name, status:m.status }));
+  projects = (data.projects || []).map(p => ({
+    id: String(p.id), name: p.name, startDate: p.createdAt || '', overview: p.overview || ''
+  }));
+  tasks = (data.tasks || []).map(t => ({
+    id: String(t.id), projectId: String(t.projectId), title: t.title || '',
+    assignee: t.assignee || '', status: t.status || 'todo', due: t.due || '', memo: t.memo || ''
+  }));
+  reports = (data.reports || []).map(r => ({
+    id: String(r.id), timestamp: r.reportDate || '', author: r.author || '', content: r.content || ''
+  }));
+  confirmLogs = (data.confirmLogs || []).map(l => ({
+    id: String(l.id), reportId: String(l.reportId), confirmedBy: l.confirmedBy,
+    confirmedAt: l.confirmedAt, type: l.type, memo: l.memo || ''
+  }));
+  confirmStates = (data.confirmStates || []).map(s => ({
+    reportId: String(s.reportId), confirmedBy: s.confirmedBy, status: s.status
+  }));
+}
+
+/* ---------- 初期読み込み ---------- */
+async function loadAll(){
+  // 「あなたは」は端末固有の設定。GASには保存しない
+  identity = localStorage.getItem(IDENTITY_STORAGE_KEY) || '';
+
+  showToast('データを読み込んでいます…', 'loading');
+  try{
+    await refetchAll();
+    hideToast();
+  }catch(err){
+    console.error('データの取得に失敗しました', err);
+    showToast('データの取得に失敗しました: ' + describeError_(err), 'error');
+  }
+  renderApp();
+}
+
+function saveIdentity(){ localStorage.setItem(IDENTITY_STORAGE_KEY, identity); }
+
+function renderIdentitySelect(){
+  const sel = document.getElementById('identitySelect');
+  const names = activeMembers().map(m => m.name);
+  sel.innerHTML = `<option value="">選択してください</option>` + names.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join('');
+  sel.value = names.includes(identity) ? identity : '';
+}
+document.getElementById('identitySelect').addEventListener('change', e => { identity = e.target.value; saveIdentity(); renderApp(); });
+
+/* ---------- navigation ---------- */
+function goDashboard(){ view='dashboard'; currentProjectId=null; currentReportId=null; renderApp(); }
+function goProject(id){ view='project'; currentProjectId=id; renderApp(); }
+function goGlobalReportsList(){ view='reports-list'; currentProjectId=null; renderApp(); }
+function goGlobalReportDetail(id){ view='reports-detail'; currentReportId=id; renderApp(); }
+
+function renderTopNav(crumbHtml){
+  const onProjectsSide = (view==='dashboard') || (view==='project');
+  const onReportsSide = (view==='reports-list') || (view==='reports-detail');
+  const el = document.getElementById('topbarLeft');
+  el.innerHTML = `
+    <h1 style="font-size:19px;">用度環境課共有シート</h1>
+    <div class="nav-tabs">
+      <button class="nav-tab ${onProjectsSide?'active':''}" id="navProjects">プロジェクト</button>
+      <button class="nav-tab ${onReportsSide?'active':''}" id="navReports">報告事項</button>
+    </div>
+    <div class="breadcrumb">${crumbHtml||''}</div>
+  `;
+  document.getElementById('navProjects').addEventListener('click', goDashboard);
+  document.getElementById('navReports').addEventListener('click', goGlobalReportsList);
+}
+
+/* ---------- gauge ---------- */
+function gaugeHtml(projectTasks){
+  const counts={todo:0,doing:0,done:0,blocked:0};
+  projectTasks.forEach(t=>{ if(counts[t.status]!==undefined) counts[t.status]++; });
+  const total=projectTasks.length;
+  let ticks='';
+  if(total===0){ for(let i=0;i<10;i++) ticks+='<div class="tick empty"></div>'; }
+  else { STATUS.forEach(s=>{ for(let i=0;i<counts[s.key];i++) ticks+=`<div class="tick status-${s.key}"></div>`; }); }
+  const legend = STATUS.map(s=>`<span><span class="legend-dot" style="background:var(--${s.var})"></span>${s.label} ${counts[s.key]}</span>`).join('');
+  return { html:`<div class="gauge-ticks">${ticks}</div><div class="gauge-legend">${legend}</div>`, counts, total };
+}
+
+// GASは追加した順に行が並ぶため、逆順にすれば「新しい順」になる
+function sortedProjects(){ return projects.slice().reverse(); }
+function sortedReports(){ return reports.slice().sort((a,b) => String(b.timestamp||'').localeCompare(String(a.timestamp||''))); }
+function isProjectCompleted(projectId){
+  const ts = tasks.filter(t=>t.projectId===projectId);
+  return ts.length > 0 && ts.every(t=>t.status==='done');
+}
+
+/* ---------- 報告事項: 確認状態・コメントをconfirmLogs/confirmStatesから算出 ---------- */
+function readByFor(reportId){
+  return confirmStates
+    .filter(s => String(s.reportId) === String(reportId) && s.status === '確認済み')
+    .map(s => s.confirmedBy);
+}
+function commentsFor(reportId){
+  return confirmLogs
+    .filter(l => String(l.reportId) === String(reportId) && l.type === 'comment')
+    .slice()
+    .sort((a,b) => String(a.confirmedAt||'').localeCompare(String(b.confirmedAt||'')))
+    .map(l => ({ author: l.confirmedBy, timestamp: l.confirmedAt, content: l.memo }));
+}
+
+/* ---------- router ---------- */
+function renderApp(){
+  renderIdentitySelect();
+  if(view==='dashboard') renderDashboard();
+  else if(view==='project') renderProjectDetail();
+  else if(view==='reports-list') renderReportsListView();
+  else if(view==='reports-detail') renderReportDetailView();
+}
+
+/* =======================================================
+   プロジェクト: 一覧
+   ======================================================= */
+function renderDashboard(){
+  renderTopNav('');
+  document.getElementById('viewHeader').innerHTML = `<h2>プロジェクト一覧</h2><button class="btn" id="newProjectBtn">＋ 新規プロジェクト</button>`;
+  document.getElementById('newProjectBtn').addEventListener('click', openNewProjectModal);
+
+  const membersHtml = activeMembers().map(m=>`
+    <div class="member-chip">
+      <input data-id="${m.id}" value="${escapeAttr(m.name)}"/>
+      <button class="member-remove" data-id="${m.id}" title="このメンバーを無効化">×</button>
+    </div>
+  `).join('') + `<button class="btn-ghost btn-sm" id="addMemberBtn">＋ メンバー追加</button>`;
+
+  const all = sortedProjects();
+  const cardsHtml = all.map(projectCardHtml).join('');
+  const body = document.getElementById('viewBody');
+  body.innerHTML = `
+    <div class="members-row">${membersHtml}</div>
+    <div class="project-grid">${cardsHtml || '<div class="empty-state">プロジェクトはまだありません。「＋ 新規プロジェクト」から作成してください。</div>'}</div>
+  `;
+
+  body.querySelectorAll('.member-chip input').forEach(inp => {
+    inp.addEventListener('change', async e => {
+      const member = members.find(m => m.id === e.target.dataset.id);
+      if(!member) return;
+      const newName = e.target.value.trim() || member.name;
+      try{
+        await gasPost({ action:'updateMemberName', id:member.id, name:newName });
+        if(identity === member.name){ identity = newName; saveIdentity(); }
+        await refetchAll();
+        renderApp();
+      }catch(err){
+        console.error('メンバー名の保存に失敗しました', err);
+        showToast('メンバー名の保存に失敗しました: ' + describeError_(err), 'error');
+        renderApp(); // 保存前の表示に戻す
+      }
+    });
+  });
+  body.querySelectorAll('.member-remove').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const member = members.find(m => m.id === btn.dataset.id);
+      if(!member) return;
+      if(!confirm(`「${member.name}」を無効化しますか？(過去のタスクや報告の記録は残ります)`)) return;
+      try{
+        await gasPost({ action:'deactivateMember', id:member.id });
+        if(identity === member.name){ identity=''; saveIdentity(); }
+        await refetchAll();
+        renderApp();
+      }catch(err){
+        console.error('メンバーの無効化に失敗しました', err);
+        showToast('メンバーの無効化に失敗しました: ' + describeError_(err), 'error');
+      }
+    });
+  });
+  document.getElementById('addMemberBtn').addEventListener('click', async () => {
+    const nextName = `メンバー${members.length+1}`;
+    try{
+      await gasPost({ action:'createMember', name: nextName }); // IDはGAS側で自動採番
+      await refetchAll();
+      renderApp();
+    }catch(err){
+      console.error('メンバーの追加に失敗しました', err);
+      showToast('メンバーの追加に失敗しました: ' + describeError_(err), 'error');
+    }
+  });
+
+  attachProjectCardHandlers(body);
+}
+
+function projectCardHtml(p){
+  const pTasks = tasks.filter(t=>t.projectId===p.id);
+  const g = gaugeHtml(pTasks);
+  const days = computeDays(p.startDate);
+  const completed = isProjectCompleted(p.id);
+  const stats = STATUS.map(s=>`<span><span class="dot" style="background:var(--${s.var})"></span>${s.label}${g.counts[s.key]}</span>`).join('');
+  return `
+    <div class="project-card ${completed?'completed':''}" data-id="${p.id}">
+      <button class="card-del" title="削除">×</button>
+      <div class="eyebrow">${completed?'✓ 完了 ・ ':''}経過${days}日</div>
+      <h3>${escapeHtml(p.name || '(名称未設定)')}</h3>
+      <div class="card-stats">${stats}</div>
+      <div class="card-footer">進捗 ${g.counts.done}/${g.total||0}件完了</div>
+    </div>
+  `;
+}
+
+function attachProjectCardHandlers(rootEl){
+  rootEl.querySelectorAll('.project-card').forEach(card => {
+    card.addEventListener('click', e => { if(e.target.closest('.card-del')) return; goProject(card.dataset.id); });
+    card.querySelector('.card-del').addEventListener('click', async e => {
+      e.stopPropagation();
+      const id = card.dataset.id;
+      const p = projects.find(pr=>pr.id===id);
+      if(!confirm(`「${p.name || '(名称未設定)'}」を削除しますか？関連するタスクも削除されます。`)) return;
+      try{
+        await gasPost({ action:'deleteProject', id });
+        await refetchAll();
+        renderApp();
+      }catch(err){
+        console.error('プロジェクトの削除に失敗しました', err);
+        showToast('削除に失敗しました: ' + describeError_(err), 'error');
+      }
+    });
+  });
+}
+
+function openNewProjectModal(){
+  const root = document.getElementById('modalRoot');
+  root.innerHTML = `
+    <div class="modal-overlay" id="modalOverlay">
+      <div class="modal-box">
+        <h3>新規プロジェクト</h3>
+        <input type="text" id="newProjectName" placeholder="プロジェクト名を入力" />
+        <div class="modal-actions">
+          <button class="btn-ghost" id="cancelNewProject">キャンセル</button>
+          <button class="btn" id="confirmNewProject">作成</button>
+        </div>
+      </div>
+    </div>
+  `;
+  const input = document.getElementById('newProjectName');
+  input.focus();
+  const close = () => { root.innerHTML=''; };
+  document.getElementById('modalOverlay').addEventListener('click', e => { if(e.target.id==='modalOverlay') close(); });
+  document.getElementById('cancelNewProject').addEventListener('click', close);
+  async function create(){
+    const name = input.value.trim();
+    if(!name) return;
+    const confirmBtn = document.getElementById('confirmNewProject');
+    const cancelBtn = document.getElementById('cancelNewProject');
+    confirmBtn.disabled = true;
+    cancelBtn.disabled = true;
+    confirmBtn.textContent = '保存中…';
+    showToast('プロジェクトを保存しています…', 'loading');
+
+    const id = uid();
+    const createdAt = new Date().toISOString().slice(0,10);
+    try{
+      await gasPost({ action:'createProject', id, name, createdAt, status:'進行中', overview:'' });
+      await refetchAll();
+      showToast('プロジェクトを保存しました', 'success');
+      close();
+      goProject(id);
+    }catch(err){
+      console.error('プロジェクトの保存に失敗しました', err);
+      showToast('保存に失敗しました: ' + describeError_(err), 'error');
+      confirmBtn.disabled = false;
+      cancelBtn.disabled = false;
+      confirmBtn.textContent = '作成';
+    }
+  }
+  document.getElementById('confirmNewProject').addEventListener('click', create);
+  input.addEventListener('keydown', e => { if(e.key==='Enter') create(); if(e.key==='Escape') close(); });
+}
+
+/* =======================================================
+   プロジェクト: 詳細(概要+進捗確認)
+   ======================================================= */
+function renderProjectDetail(){
+  const p = projects.find(pr=>pr.id===currentProjectId);
+  if(!p){ goDashboard(); return; }
+  renderTopNav(`<button class="crumb-link" id="crumbDash">プロジェクト</button><span>›</span><span class="crumb-current">${escapeHtml(p.name||'(名称未設定)')}</span>`);
+  document.getElementById('crumbDash').addEventListener('click', goDashboard);
+  document.getElementById('viewHeader').innerHTML = '';
+
+  const projectTasks = tasks.filter(t=>t.projectId===p.id);
+  const days = computeDays(p.startDate);
+  const g = gaugeHtml(projectTasks);
+
+  const body = document.getElementById('viewBody');
+  body.innerHTML = `
+    <div class="detail-block">
+      <input class="project-name-input" id="projName" value="${escapeAttr(p.name)}" placeholder="プロジェクト名" />
+      <div class="eyebrow" style="margin-top:6px;">経過${days}日 ・ 開始 ${p.startDate}</div>
+    </div>
+    <div class="detail-block">
+      <h4>概要</h4>
+      <textarea id="projOverview" placeholder="目的・スコープ・背景など"></textarea>
+    </div>
+    <div class="detail-block">
+      <div class="section-head"><h4 style="margin:0;">進捗確認</h4><button class="btn btn-sm" id="addTaskBtn">＋ タスク追加</button></div>
+      <div class="gauge">${g.html}</div>
+      <div id="taskListWrap"></div>
+    </div>
+  `;
+  document.getElementById('projOverview').value = p.overview || '';
+
+  document.getElementById('projName').addEventListener('change', async e => {
+    const newName = e.target.value;
+    try{
+      await gasPost({ action:'updateProject', id:p.id, name:newName, overview:p.overview||'' });
+      await refetchAll();
+      renderApp();
+    }catch(err){
+      console.error('プロジェクト名の保存に失敗しました', err);
+      showToast('プロジェクト名の保存に失敗しました: ' + describeError_(err), 'error');
+      renderApp(); // 保存前の表示に戻す
+    }
+  });
+  document.getElementById('projOverview').addEventListener('change', async e => {
+    const newOverview = e.target.value;
+    try{
+      await gasPost({ action:'updateProject', id:p.id, name:p.name, overview:newOverview });
+      await refetchAll();
+      renderApp();
+    }catch(err){
+      console.error('概要の保存に失敗しました', err);
+      showToast('概要の保存に失敗しました: ' + describeError_(err), 'error');
+      renderApp();
+    }
+  });
+  document.getElementById('addTaskBtn').addEventListener('click', async () => {
+    const id = uid();
+    const assignee = activeMembers()[0]?.name || '';
+    try{
+      await gasPost({ action:'createTask', id, projectId:p.id, title:'', assignee, status:'todo', due:'', memo:'' });
+      await refetchAll();
+      renderApp();
+    }catch(err){
+      console.error('タスクの追加に失敗しました', err);
+      showToast('タスクの追加に失敗しました: ' + describeError_(err), 'error');
+    }
+  });
+  renderTaskList(projectTasks);
+}
+
+function renderTaskList(projectTasks){
+  const wrap = document.getElementById('taskListWrap');
+  if(!wrap) return;
+  if(projectTasks.length===0){ wrap.innerHTML='<div class="empty-state">タスクはまだありません。「＋ タスク追加」で最初のタスクを登録してください。</div>'; return; }
+  wrap.innerHTML = projectTasks.map(taskRowHtml).join('');
+  wrap.querySelectorAll('.task-row').forEach(row => {
+    row.addEventListener('click', e => { if(e.target.closest('.row-del')) return; openTaskEditModal(row.dataset.id); });
+    row.querySelector('.row-del').addEventListener('click', async e => {
+      e.stopPropagation();
+      const id = row.dataset.id;
+      try{
+        await gasPost({ action:'deleteTask', id });
+        await refetchAll();
+        renderApp();
+      }catch(err){
+        console.error('タスクの削除に失敗しました', err);
+        showToast('タスクの削除に失敗しました: ' + describeError_(err), 'error');
+      }
+    });
+  });
+}
+
+function taskRowHtml(t){
+  const s = STATUS.find(x=>x.key===t.status) || STATUS[0];
+  const metaParts = [escapeHtml(t.assignee||'未割当'), s.label];
+  if(t.due) metaParts.push(`期限 ${t.due}`);
+  if(t.memo) metaParts.push(escapeHtml(t.memo));
+  return `
+    <div class="task-row" data-id="${t.id}">
+      <span class="status-dot" style="background:var(--${s.var})"></span>
+      <div class="task-main">
+        <div class="task-title">${escapeHtml(t.title || '(タイトル未設定)')}</div>
+        <div class="task-meta">${metaParts.map(m=>`<span>${m}</span>`).join('')}</div>
+      </div>
+      <button class="del-btn row-del" title="削除">×</button>
+    </div>
+  `;
+}
+
+// 無効化済みメンバーが担当者に設定されている場合も、表示だけは維持する(選択肢としては先頭に追加)
+function assigneeOptionsHtml(currentValue){
+  const names = activeMembers().map(m=>m.name);
+  if(currentValue && !names.includes(currentValue)) names.unshift(currentValue);
+  return names.map(n => `<option value="${escapeAttr(n)}" ${n===currentValue?'selected':''}>${escapeHtml(n)}</option>`).join('');
+}
+
+function openTaskEditModal(taskId){
+  const task = tasks.find(t=>t.id===taskId);
+  if(!task) return;
+  const root = document.getElementById('modalRoot');
+  root.innerHTML = `
+    <div class="modal-overlay" id="modalOverlay">
+      <div class="modal-box">
+        <h3>タスクを編集</h3>
+        <input type="text" id="editTitle" placeholder="タスク名" value="${escapeAttr(task.title)}" />
+        <select id="editAssignee">${assigneeOptionsHtml(task.assignee)}</select>
+        <select id="editStatus">${STATUS.map(s=>`<option value="${s.key}" ${s.key===task.status?'selected':''}>${s.label}</option>`).join('')}</select>
+        <input type="date" id="editDue" value="${task.due||''}" />
+        <input type="text" id="editMemo" placeholder="メモ" value="${escapeAttr(task.memo||'')}" />
+        <div class="modal-actions">
+          <button class="btn-ghost" id="deleteTaskBtn">削除</button>
+          <button class="btn-ghost" id="cancelEditTask">キャンセル</button>
+          <button class="btn" id="saveEditTask">保存</button>
+        </div>
+      </div>
+    </div>
+  `;
+  const close = () => { root.innerHTML=''; };
+  document.getElementById('modalOverlay').addEventListener('click', e => { if(e.target.id==='modalOverlay') close(); });
+  document.getElementById('cancelEditTask').addEventListener('click', close);
+  document.getElementById('deleteTaskBtn').addEventListener('click', async () => {
+    try{
+      await gasPost({ action:'deleteTask', id:taskId });
+      await refetchAll();
+      close();
+      renderApp();
+    }catch(err){
+      console.error('タスクの削除に失敗しました', err);
+      showToast('タスクの削除に失敗しました: ' + describeError_(err), 'error');
+    }
+  });
+  document.getElementById('saveEditTask').addEventListener('click', async () => {
+    const newVals = {
+      title: document.getElementById('editTitle').value,
+      assignee: document.getElementById('editAssignee').value,
+      status: document.getElementById('editStatus').value,
+      due: document.getElementById('editDue').value,
+      memo: document.getElementById('editMemo').value
+    };
+    try{
+      await gasPost({ action:'updateTask', id:taskId, ...newVals });
+      await refetchAll();
+      close();
+      renderApp();
+    }catch(err){
+      console.error('タスクの保存に失敗しました', err);
+      showToast('タスクの保存に失敗しました: ' + describeError_(err), 'error');
+    }
+  });
+}
+
+/* =======================================================
+   報告事項: 一覧
+   ======================================================= */
+function renderReportsListView(){
+  renderTopNav('');
+  document.getElementById('viewHeader').innerHTML = `<h2>日常業務の報告・共有</h2>`;
+
+  const list = sortedReports();
+  const body = document.getElementById('viewBody');
+  body.innerHTML = `
+    ${composerHtml()}
+    <div id="reportRows">${list.length ? list.map(reportRowHtml).join('') : '<div class="empty-state">報告はまだありません。日々の業務内容を共有してみましょう。</div>'}</div>
+  `;
+  attachComposerHandlers(body, () => renderReportsListView());
+  attachReportRowHandlers(body, id => goGlobalReportDetail(id), () => renderReportsListView());
+}
+
+function composerHtml(){
+  return `
+    <div class="report-composer">
+      <div class="composer-row">
+        <select class="composer-author">${activeMembers().map(m=>`<option value="${escapeAttr(m.name)}">${escapeHtml(m.name)}</option>`).join('')}</select>
+      </div>
+      <textarea class="composer-content" placeholder="日々の業務内容や共有事項を入力"></textarea>
+      <div class="composer-actions"><button class="btn btn-sm composer-add">追加</button></div>
+    </div>
+  `;
+}
+
+function attachComposerHandlers(rootEl, onAdded){
+  const authorSel = rootEl.querySelector('.composer-author');
+  if(activeMembers().some(m=>m.name===identity)) authorSel.value = identity;
+  rootEl.querySelector('.composer-add').addEventListener('click', async () => {
+    const contentEl = rootEl.querySelector('.composer-content');
+    const content = contentEl.value.trim();
+    if(!content) return;
+    const author = authorSel.value;
+    const id = uid();
+    try{
+      // 投稿者の確認済み扱いはGAS側で自動的に行われるため、ここではローカルで確認ログ等を作らない
+      await gasPost({ action:'createReport', id, author, content });
+      await refetchAll();
+      contentEl.value = '';
+      onAdded();
+    }catch(err){
+      console.error('報告の投稿に失敗しました', err);
+      showToast('報告の投稿に失敗しました: ' + describeError_(err), 'error');
+    }
+  });
+}
+
+function reportRowHtml(r){
+  const preview = r.content.length > 90 ? r.content.slice(0,90)+'…' : r.content;
+  const activeNames = activeMembers().map(m=>m.name);
+  const confirmedNames = readByFor(r.id).filter(n => activeNames.includes(n));
+  const allRead = activeNames.length > 0 && confirmedNames.length >= activeNames.length;
+  return `
+    <div class="report-row ${allRead?'all-read':''}" data-id="${r.id}">
+      <div class="report-row-main">
+        <div class="report-row-head"><span>${fmtTs(r.timestamp)}</span><span class="author">${escapeHtml(r.author)}</span><span class="read-badge">${allRead ? '✓ 全員確認済み' : `確認${confirmedNames.length}/${activeNames.length}`}</span></div>
+        <div class="report-row-preview">${escapeHtml(preview)}</div>
+      </div>
+      <button class="del-btn row-del" title="削除">×</button>
+    </div>
+  `;
+}
+
+function attachReportRowHandlers(rootEl, onOpen, onDeleted){
+  rootEl.querySelectorAll('.report-row').forEach(row => {
+    row.addEventListener('click', e => { if(e.target.closest('.row-del')) return; onOpen(row.dataset.id); });
+    row.querySelector('.row-del').addEventListener('click', async e => {
+      e.stopPropagation();
+      const id = row.dataset.id;
+      try{
+        await gasPost({ action:'deleteReport', id });
+        await refetchAll();
+        onDeleted();
+      }catch(err){
+        console.error('報告の削除に失敗しました', err);
+        showToast('削除に失敗しました: ' + describeError_(err), 'error');
+      }
+    });
+  });
+}
+
+/* =======================================================
+   報告事項: 詳細
+   ======================================================= */
+function renderReportDetailView(){
+  const r = reports.find(rp=>rp.id===currentReportId);
+  if(!r){ goGlobalReportsList(); return; }
+
+  renderTopNav(`<button class="crumb-link" id="crumbReports">報告事項</button><span>›</span><span class="crumb-current">詳細</span>`);
+  document.getElementById('crumbReports').addEventListener('click', goGlobalReportsList);
+  document.getElementById('viewHeader').innerHTML = '';
+
+  const body = document.getElementById('viewBody');
+  body.innerHTML = reportDetailHtml(r);
+  attachReportDetailHandlers(body, r, () => goGlobalReportsList(), () => renderReportDetailView());
+}
+
+function reportDetailHtml(r){
+  const confirmed = readByFor(r.id);
+  const activeNames = activeMembers().map(m=>m.name);
+  const readChips = activeMembers().map(m => {
+    const isRead = confirmed.includes(m.name);
+    const isMe = m.name === identity && identity !== '';
+    return `<button type="button" class="read-chip ${isRead?'read':''} ${isMe?'me':''}" data-member="${escapeAttr(m.name)}" ${isMe?'':'disabled'}>${isRead?'✓ ':''}${escapeHtml(m.name)}</button>`;
+  }).join('');
+  const commentsHtml = commentsFor(r.id).map(c => `
+    <div class="comment"><span class="comment-meta">${fmtTs(c.timestamp)} ${escapeHtml(c.author)}</span><div class="comment-body">${escapeHtml(c.content)}</div></div>
+  `).join('');
+  return `
+    <div class="report-detail">
+      <div class="report-detail-head"><span>${fmtTs(r.timestamp)}</span><span class="author">${escapeHtml(r.author)}</span></div>
+      <div class="report-detail-body">${escapeHtml(r.content)}</div>
+      <div class="eyebrow" style="margin-bottom:6px;">確認 ${confirmed.filter(n=>activeNames.includes(n)).length}/${activeNames.length}</div>
+      <div class="read-row">${readChips}</div>
+      <div class="comments">
+        ${commentsHtml || '<div class="empty-state">コメントはまだありません。</div>'}
+        <div class="comment-form">
+          <input type="text" class="comment-input" placeholder="${identity ? identity+'としてコメント' : '右上で「あなたは」を選択してください'}" ${identity?'':'disabled'}/>
+          <button class="btn-ghost btn-sm comment-add" ${identity?'':'disabled'}>送信</button>
+        </div>
+      </div>
+      <div class="detail-actions"><button class="btn-ghost btn-sm detail-del">この報告を削除</button></div>
+    </div>
+  `;
+}
+
+function attachReportDetailHandlers(rootEl, report, onDeleted, rerender){
+  rootEl.querySelectorAll('.read-chip.me').forEach(chip => {
+    chip.addEventListener('click', async () => {
+      const m = chip.dataset.member;
+      const currentlyRead = readByFor(report.id).includes(m);
+      const action = currentlyRead ? 'unconfirmReport' : 'confirmReport';
+      try{
+        await gasPost({ action, reportId: report.id, confirmedBy: m });
+        await refetchAll();
+        rerender();
+      }catch(err){
+        console.error('確認状態の更新に失敗しました', err);
+        showToast('確認状態の更新に失敗しました: ' + describeError_(err), 'error');
+      }
+    });
+  });
+  const addComment = async () => {
+    if(!identity) return;
+    const input = rootEl.querySelector('.comment-input');
+    const content = input.value.trim();
+    if(!content) return;
+    try{
+      await gasPost({ action:'addReportComment', reportId: report.id, author: identity, content });
+      await refetchAll();
+      rerender();
+    }catch(err){
+      console.error('コメントの送信に失敗しました', err);
+      showToast('コメントの送信に失敗しました: ' + describeError_(err), 'error');
+    }
+  };
+  const addBtn = rootEl.querySelector('.comment-add');
+  if(addBtn && !addBtn.disabled) addBtn.addEventListener('click', addComment);
+  const commentInput = rootEl.querySelector('.comment-input');
+  if(commentInput && !commentInput.disabled) commentInput.addEventListener('keydown', e => { if(e.key==='Enter') addComment(); });
+  const delBtn = rootEl.querySelector('.detail-del');
+  if(delBtn) delBtn.addEventListener('click', async () => {
+    try{
+      await gasPost({ action:'deleteReport', id: report.id });
+      await refetchAll();
+      onDeleted();
+    }catch(err){
+      console.error('報告の削除に失敗しました', err);
+      showToast('削除に失敗しました: ' + describeError_(err), 'error');
+    }
+  });
+}
+
+loadAll();
+</script>
+</body>
+</html>
