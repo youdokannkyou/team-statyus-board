@@ -121,8 +121,11 @@ function createProject_(body) {
   if (!body.name) return { success: false, error: 'プロジェクト名が空です' };
   const sheet = getSheet_(SHEET_PROJECTS);
   const id = body.id || Utilities.getUuid();
-  sheet.appendRow([id, body.name, body.createdAt || todayStr_(), body.status || '進行中', body.overview || '']);
-  return { success: true, id: id };
+  const createdAt = body.createdAt || todayStr_();
+  const status = body.status || '進行中';
+  const overview = body.overview || '';
+  sheet.appendRow([id, body.name, createdAt, status, overview]);
+  return { success: true, project: { id: id, name: body.name, createdAt: createdAt, status: status, overview: overview } };
 }
 
 // プロジェクト名・概要の更新(作成日・状態は変更しない)
@@ -133,7 +136,8 @@ function updateProject_(body) {
   if (rowIndex === -1) return { success: false, error: '対象のプロジェクトが見つかりません' };
   sheet.getRange(rowIndex, 2, 1, 1).setValue(body.name || '');       // B列: 名前
   sheet.getRange(rowIndex, 5, 1, 1).setValue(body.overview || '');   // E列: 概要
-  return { success: true };
+  const row = sheet.getRange(rowIndex, 1, 1, 5).getValues()[0];
+  return { success: true, project: { id: String(row[0]), name: row[1], createdAt: row[2], status: row[3], overview: row[4] || '' } };
 }
 
 function deleteProject_(body) {
@@ -143,7 +147,7 @@ function deleteProject_(body) {
   if (!found) return { success: false, error: '対象のプロジェクトが見つかりません' };
   // 紐づくタスクも削除
   deleteRowsWhere_(getSheet_(SHEET_TASKS), 1, body.id);
-  return { success: true };
+  return { success: true, id: body.id };
 }
 
 /* =========================================================
@@ -166,11 +170,14 @@ function listTasks_() {
 function createTask_(body) {
   const sheet = getSheet_(SHEET_TASKS);
   const id = body.id || Utilities.getUuid();
-  sheet.appendRow([
-    id, body.projectId, body.title || '', body.assignee || '',
-    body.status || 'todo', body.due || '', body.memo || '', nowStr_()
-  ]);
-  return { success: true, id: id };
+  const updatedAt = nowStr_();
+  const title = body.title || '';
+  const assignee = body.assignee || '';
+  const status = body.status || 'todo';
+  const due = body.due || '';
+  const memo = body.memo || '';
+  sheet.appendRow([id, body.projectId, title, assignee, status, due, memo, updatedAt]);
+  return { success: true, task: { id: id, projectId: String(body.projectId), title: title, assignee: assignee, status: status, due: due, memo: memo, updatedAt: updatedAt } };
 }
 
 function updateTask_(body) {
@@ -178,12 +185,16 @@ function updateTask_(body) {
   const sheet = getSheet_(SHEET_TASKS);
   const rowIndex = findRowIndexById_(sheet, 0, body.id);
   if (rowIndex === -1) return { success: false, error: '対象のタスクが見つかりません' };
+  const updatedAt = nowStr_();
+  const title = body.title || '';
+  const assignee = body.assignee || '';
+  const status = body.status || 'todo';
+  const due = body.due || '';
+  const memo = body.memo || '';
   // C〜H列(タイトル・担当・状態・期限・メモ・更新日時)を更新。A/B(id, projectId)は変更しない
-  sheet.getRange(rowIndex, 3, 1, 6).setValues([[
-    body.title || '', body.assignee || '', body.status || 'todo',
-    body.due || '', body.memo || '', nowStr_()
-  ]]);
-  return { success: true };
+  sheet.getRange(rowIndex, 3, 1, 6).setValues([[title, assignee, status, due, memo, updatedAt]]);
+  const projectId = sheet.getRange(rowIndex, 2, 1, 1).getValue();
+  return { success: true, task: { id: body.id, projectId: String(projectId), title: title, assignee: assignee, status: status, due: due, memo: memo, updatedAt: updatedAt } };
 }
 
 function deleteTask_(body) {
@@ -191,7 +202,7 @@ function deleteTask_(body) {
   const sheet = getSheet_(SHEET_TASKS);
   const found = deleteRowById_(sheet, 0, body.id);
   if (!found) return { success: false, error: '対象のタスクが見つかりません' };
-  return { success: true };
+  return { success: true, id: body.id };
 }
 
 /* =========================================================
@@ -216,13 +227,14 @@ function createReport_(body) {
   const sheet = getSheet_(SHEET_REPORTS);
   const id = body.id || Utilities.getUuid();
   const now = nowStr_();
+  const author = body.author || '';
   // B列(報告日)には日時まで含めて保存し、投稿順の並び替えに使えるようにする
-  sheet.appendRow([id, now, body.author || '', body.content, '', '', '', now]);
+  sheet.appendRow([id, now, author, body.content, '', '', '', now]);
   // 投稿者は自動的に「確認済み」扱いとする(既存サイトの挙動を維持)
-  setConfirmState_(id, body.author || '', '確認済み');
-  appendConfirmLog_(id, body.author || '', 'confirm', '');
-  updateReportLatest_(id, body.author || '', now, '');
-  return { success: true, id: id };
+  const confirmState = setConfirmState_(id, author, '確認済み');
+  const confirmLog = appendConfirmLog_(id, author, 'confirm', '');
+  const report = updateReportLatest_(id, author, confirmState.updatedAt, '');
+  return { success: true, report: report, confirmState: confirmState, confirmLog: confirmLog };
 }
 
 function deleteReport_(body) {
@@ -232,7 +244,7 @@ function deleteReport_(body) {
   if (!found) return { success: false, error: '対象の報告が見つかりません' };
   deleteRowsWhere_(getSheet_(SHEET_LOGS), 1, body.id);
   deleteRowsWhere_(getSheet_(SHEET_CONFIRM_STATE), 0, body.id);
-  return { success: true };
+  return { success: true, id: body.id };
 }
 
 // 既読チェック(状態を「確認済み」に)
@@ -240,11 +252,10 @@ function confirmReport_(body) {
   if (!body.reportId || !body.confirmedBy) {
     return { success: false, error: 'reportId / confirmedBy が必要です' };
   }
-  const now = nowStr_();
-  setConfirmState_(body.reportId, body.confirmedBy, '確認済み');
-  appendConfirmLog_(body.reportId, body.confirmedBy, 'confirm', '');
-  updateReportLatest_(body.reportId, body.confirmedBy, now, '');
-  return { success: true };
+  const confirmState = setConfirmState_(body.reportId, body.confirmedBy, '確認済み');
+  const confirmLog = appendConfirmLog_(body.reportId, body.confirmedBy, 'confirm', '');
+  const report = updateReportLatest_(body.reportId, body.confirmedBy, confirmState.updatedAt, '');
+  return { success: true, confirmState: confirmState, confirmLog: confirmLog, report: report };
 }
 
 // 既読の取り消し(状態を「未確認」に)
@@ -252,11 +263,10 @@ function unconfirmReport_(body) {
   if (!body.reportId || !body.confirmedBy) {
     return { success: false, error: 'reportId / confirmedBy が必要です' };
   }
-  const now = nowStr_();
-  setConfirmState_(body.reportId, body.confirmedBy, '未確認');
-  appendConfirmLog_(body.reportId, body.confirmedBy, 'unconfirm', '');
-  updateReportLatest_(body.reportId, body.confirmedBy, now, '');
-  return { success: true };
+  const confirmState = setConfirmState_(body.reportId, body.confirmedBy, '未確認');
+  const confirmLog = appendConfirmLog_(body.reportId, body.confirmedBy, 'unconfirm', '');
+  const report = updateReportLatest_(body.reportId, body.confirmedBy, confirmState.updatedAt, '');
+  return { success: true, confirmState: confirmState, confirmLog: confirmLog, report: report };
 }
 
 // コメント送信(既読も兼ねる)
@@ -264,18 +274,24 @@ function addReportComment_(body) {
   if (!body.reportId || !body.author || !body.content) {
     return { success: false, error: 'reportId / author / content が必要です' };
   }
-  const now = nowStr_();
-  setConfirmState_(body.reportId, body.author, '確認済み');
-  appendConfirmLog_(body.reportId, body.author, 'comment', body.content);
-  updateReportLatest_(body.reportId, body.author, now, body.content);
-  return { success: true };
+  const confirmState = setConfirmState_(body.reportId, body.author, '確認済み');
+  const confirmLog = appendConfirmLog_(body.reportId, body.author, 'comment', body.content);
+  const report = updateReportLatest_(body.reportId, body.author, confirmState.updatedAt, body.content);
+  return { success: true, confirmState: confirmState, confirmLog: confirmLog, report: report };
 }
 
+// 報告内容シートのE〜H列(最新の確認者・確認日・確認メモ・更新日時)を更新し、
+// 更新後の行全体をオブジェクトとして返す(confirm/unconfirm/comment のレスポンスに含めるため)
 function updateReportLatest_(reportId, confirmedBy, confirmedAt, memo) {
   const sheet = getSheet_(SHEET_REPORTS);
   const rowIndex = findRowIndexById_(sheet, 0, reportId);
-  if (rowIndex === -1) return;
+  if (rowIndex === -1) return null;
   sheet.getRange(rowIndex, 5, 1, 4).setValues([[confirmedBy, confirmedAt, memo || '', confirmedAt]]);
+  const row = sheet.getRange(rowIndex, 1, 1, 8).getValues()[0];
+  return {
+    id: String(row[0]), reportDate: row[1], author: row[2], content: row[3],
+    lastConfirmedBy: row[4], lastConfirmedAt: row[5], lastConfirmMemo: row[6], updatedAt: row[7]
+  };
 }
 
 /* =========================================================
@@ -295,7 +311,10 @@ function listConfirmLogs_() {
 
 function appendConfirmLog_(reportId, confirmedBy, type, memo) {
   const sheet = getSheet_(SHEET_LOGS);
-  sheet.appendRow([Utilities.getUuid(), reportId, confirmedBy, nowStr_(), type, memo || '']);
+  const id = Utilities.getUuid();
+  const confirmedAt = nowStr_();
+  sheet.appendRow([id, reportId, confirmedBy, confirmedAt, type, memo || '']);
+  return { id: id, reportId: String(reportId), confirmedBy: confirmedBy, confirmedAt: confirmedAt, type: type, memo: memo || '' };
 }
 
 /* =========================================================
@@ -322,11 +341,12 @@ function setConfirmState_(reportId, confirmedBy, status) {
     for (let i = 0; i < values.length; i++) {
       if (String(values[i][0]) === String(reportId) && String(values[i][1]) === String(confirmedBy)) {
         sheet.getRange(i + 2, 3, 1, 2).setValues([[status, now]]);
-        return;
+        return { reportId: String(reportId), confirmedBy: confirmedBy, status: status, updatedAt: now };
       }
     }
   }
   sheet.appendRow([reportId, confirmedBy, status, now]);
+  return { reportId: String(reportId), confirmedBy: confirmedBy, status: status, updatedAt: now };
 }
 
 /* =========================================================
@@ -346,7 +366,7 @@ function createMember_(body) {
   const sheet = getSheet_(SHEET_MEMBERS);
   const id = nextMemberId_(sheet);
   sheet.appendRow([id, body.name, '有効']);
-  return { success: true, id: id };
+  return { success: true, member: { id: id, name: body.name, status: '有効' } };
 }
 
 function updateMemberName_(body) {
@@ -355,7 +375,8 @@ function updateMemberName_(body) {
   const rowIndex = findRowIndexById_(sheet, 0, body.id);
   if (rowIndex === -1) return { success: false, error: '対象のメンバーが見つかりません' };
   sheet.getRange(rowIndex, 2, 1, 1).setValue(body.name);
-  return { success: true };
+  const status = sheet.getRange(rowIndex, 3, 1, 1).getValue();
+  return { success: true, member: { id: body.id, name: body.name, status: status } };
 }
 
 function deactivateMember_(body) {
@@ -364,7 +385,8 @@ function deactivateMember_(body) {
   const rowIndex = findRowIndexById_(sheet, 0, body.id);
   if (rowIndex === -1) return { success: false, error: '対象のメンバーが見つかりません' };
   sheet.getRange(rowIndex, 3, 1, 1).setValue('無効');
-  return { success: true };
+  const name = sheet.getRange(rowIndex, 2, 1, 1).getValue();
+  return { success: true, member: { id: body.id, name: name, status: '無効' } };
 }
 
 function nextMemberId_(sheet) {
