@@ -293,26 +293,31 @@ function describeError_(err){
 /* GASの listAll を呼び、全グローバル配列を最新の状態に置き換える。
    保存・削除・確認操作が成功した直後は必ずこれを呼び、
    ローカル配列を手動で書き換えるのではなくスプレッドシートの実データで再描画する。 */
+/* ---------- GASレスポンス ⇔ ローカル配列 のマッピング(初回読み込み・各操作の反映で共通利用) ---------- */
+function mapMember_(m){ return { id:String(m.id), name:m.name, status:m.status }; }
+function mapProject_(p){ return { id:String(p.id), name:p.name, startDate:p.createdAt || '', overview:p.overview || '' }; }
+function mapTask_(t){ return { id:String(t.id), projectId:String(t.projectId), title:t.title || '', assignee:t.assignee || '', status:t.status || 'todo', due:t.due || '', memo:t.memo || '' }; }
+function mapReport_(r){ return { id:String(r.id), timestamp:r.reportDate || '', author:r.author || '', content:r.content || '' }; }
+function mapConfirmLog_(l){ return { id:String(l.id), reportId:String(l.reportId), confirmedBy:l.confirmedBy, confirmedAt:l.confirmedAt, type:l.type, memo:l.memo || '' }; }
+function mapConfirmState_(s){ return { reportId:String(s.reportId), confirmedBy:s.confirmedBy, status:s.status }; }
+
+// 同じ「報告ID + 確認者」の組み合わせがあれば置き換え、なければ追加する
+function upsertConfirmState(state){
+  const idx = confirmStates.findIndex(s => s.reportId===state.reportId && s.confirmedBy===state.confirmedBy);
+  if(idx>-1) confirmStates[idx] = state; else confirmStates.push(state);
+}
+
+// GASの listAll を呼び、全グローバル配列を最新の状態に置き換える。
+// 通常の保存・編集・削除・確認操作では使わない(各操作のレスポンスをその場で反映する)。
+// 初回読み込み時のみ、他端末での変更も含めて最新状態を取得するために使用する。
 async function refetchAll(){
   const data = await gasGet('listAll');
-  members = (data.members || []).map(m => ({ id:String(m.id), name:m.name, status:m.status }));
-  projects = (data.projects || []).map(p => ({
-    id: String(p.id), name: p.name, startDate: p.createdAt || '', overview: p.overview || ''
-  }));
-  tasks = (data.tasks || []).map(t => ({
-    id: String(t.id), projectId: String(t.projectId), title: t.title || '',
-    assignee: t.assignee || '', status: t.status || 'todo', due: t.due || '', memo: t.memo || ''
-  }));
-  reports = (data.reports || []).map(r => ({
-    id: String(r.id), timestamp: r.reportDate || '', author: r.author || '', content: r.content || ''
-  }));
-  confirmLogs = (data.confirmLogs || []).map(l => ({
-    id: String(l.id), reportId: String(l.reportId), confirmedBy: l.confirmedBy,
-    confirmedAt: l.confirmedAt, type: l.type, memo: l.memo || ''
-  }));
-  confirmStates = (data.confirmStates || []).map(s => ({
-    reportId: String(s.reportId), confirmedBy: s.confirmedBy, status: s.status
-  }));
+  members = (data.members || []).map(mapMember_);
+  projects = (data.projects || []).map(mapProject_);
+  tasks = (data.tasks || []).map(mapTask_);
+  reports = (data.reports || []).map(mapReport_);
+  confirmLogs = (data.confirmLogs || []).map(mapConfirmLog_);
+  confirmStates = (data.confirmStates || []).map(mapConfirmState_);
 }
 
 /* ---------- 初期読み込み ---------- */
@@ -435,9 +440,9 @@ function renderDashboard(){
       if(!member) return;
       const newName = e.target.value.trim() || member.name;
       try{
-        await gasPost({ action:'updateMemberName', id:member.id, name:newName });
-        if(identity === member.name){ identity = newName; saveIdentity(); }
-        await refetchAll();
+        const res = await gasPost({ action:'updateMemberName', id:member.id, name:newName });
+        if(identity === member.name){ identity = res.member.name; saveIdentity(); }
+        Object.assign(member, mapMember_(res.member));
         renderApp();
       }catch(err){
         console.error('メンバー名の保存に失敗しました', err);
@@ -452,9 +457,9 @@ function renderDashboard(){
       if(!member) return;
       if(!confirm(`「${member.name}」を無効化しますか？(過去のタスクや報告の記録は残ります)`)) return;
       try{
-        await gasPost({ action:'deactivateMember', id:member.id });
+        const res = await gasPost({ action:'deactivateMember', id:member.id });
         if(identity === member.name){ identity=''; saveIdentity(); }
-        await refetchAll();
+        Object.assign(member, mapMember_(res.member));
         renderApp();
       }catch(err){
         console.error('メンバーの無効化に失敗しました', err);
@@ -465,8 +470,8 @@ function renderDashboard(){
   document.getElementById('addMemberBtn').addEventListener('click', async () => {
     const nextName = `メンバー${members.length+1}`;
     try{
-      await gasPost({ action:'createMember', name: nextName }); // IDはGAS側で自動採番
-      await refetchAll();
+      const res = await gasPost({ action:'createMember', name: nextName }); // IDはGAS側で自動採番
+      members.push(mapMember_(res.member));
       renderApp();
     }catch(err){
       console.error('メンバーの追加に失敗しました', err);
@@ -504,7 +509,8 @@ function attachProjectCardHandlers(rootEl){
       if(!confirm(`「${p.name || '(名称未設定)'}」を削除しますか？関連するタスクも削除されます。`)) return;
       try{
         await gasPost({ action:'deleteProject', id });
-        await refetchAll();
+        projects = projects.filter(pr=>pr.id!==id);
+        tasks = tasks.filter(t=>t.projectId!==id);
         renderApp();
       }catch(err){
         console.error('プロジェクトの削除に失敗しました', err);
@@ -546,11 +552,12 @@ function openNewProjectModal(){
     const id = uid();
     const createdAt = new Date().toISOString().slice(0,10);
     try{
-      await gasPost({ action:'createProject', id, name, createdAt, status:'進行中', overview:'' });
-      await refetchAll();
+      const res = await gasPost({ action:'createProject', id, name, createdAt, status:'進行中', overview:'' });
+      const newProject = mapProject_(res.project);
+      projects.push(newProject);
       showToast('プロジェクトを保存しました', 'success');
       close();
-      goProject(id);
+      goProject(newProject.id);
     }catch(err){
       console.error('プロジェクトの保存に失敗しました', err);
       showToast('保存に失敗しました: ' + describeError_(err), 'error');
@@ -598,8 +605,8 @@ function renderProjectDetail(){
   document.getElementById('projName').addEventListener('change', async e => {
     const newName = e.target.value;
     try{
-      await gasPost({ action:'updateProject', id:p.id, name:newName, overview:p.overview||'' });
-      await refetchAll();
+      const res = await gasPost({ action:'updateProject', id:p.id, name:newName, overview:p.overview||'' });
+      Object.assign(p, mapProject_(res.project));
       renderApp();
     }catch(err){
       console.error('プロジェクト名の保存に失敗しました', err);
@@ -610,8 +617,8 @@ function renderProjectDetail(){
   document.getElementById('projOverview').addEventListener('change', async e => {
     const newOverview = e.target.value;
     try{
-      await gasPost({ action:'updateProject', id:p.id, name:p.name, overview:newOverview });
-      await refetchAll();
+      const res = await gasPost({ action:'updateProject', id:p.id, name:p.name, overview:newOverview });
+      Object.assign(p, mapProject_(res.project));
       renderApp();
     }catch(err){
       console.error('概要の保存に失敗しました', err);
@@ -623,8 +630,8 @@ function renderProjectDetail(){
     const id = uid();
     const assignee = activeMembers()[0]?.name || '';
     try{
-      await gasPost({ action:'createTask', id, projectId:p.id, title:'', assignee, status:'todo', due:'', memo:'' });
-      await refetchAll();
+      const res = await gasPost({ action:'createTask', id, projectId:p.id, title:'', assignee, status:'todo', due:'', memo:'' });
+      tasks.push(mapTask_(res.task));
       renderApp();
     }catch(err){
       console.error('タスクの追加に失敗しました', err);
@@ -646,7 +653,7 @@ function renderTaskList(projectTasks){
       const id = row.dataset.id;
       try{
         await gasPost({ action:'deleteTask', id });
-        await refetchAll();
+        tasks = tasks.filter(t=>t.id!==id);
         renderApp();
       }catch(err){
         console.error('タスクの削除に失敗しました', err);
@@ -707,7 +714,7 @@ function openTaskEditModal(taskId){
   document.getElementById('deleteTaskBtn').addEventListener('click', async () => {
     try{
       await gasPost({ action:'deleteTask', id:taskId });
-      await refetchAll();
+      tasks = tasks.filter(t=>t.id!==taskId);
       close();
       renderApp();
     }catch(err){
@@ -724,8 +731,8 @@ function openTaskEditModal(taskId){
       memo: document.getElementById('editMemo').value
     };
     try{
-      await gasPost({ action:'updateTask', id:taskId, ...newVals });
-      await refetchAll();
+      const res = await gasPost({ action:'updateTask', id:taskId, ...newVals });
+      Object.assign(task, mapTask_(res.task));
       close();
       renderApp();
     }catch(err){
@@ -774,9 +781,10 @@ function attachComposerHandlers(rootEl, onAdded){
     const author = authorSel.value;
     const id = uid();
     try{
-      // 投稿者の確認済み扱いはGAS側で自動的に行われるため、ここではローカルで確認ログ等を作らない
-      await gasPost({ action:'createReport', id, author, content });
-      await refetchAll();
+      const res = await gasPost({ action:'createReport', id, author, content });
+      reports.push(mapReport_(res.report));
+      upsertConfirmState(mapConfirmState_(res.confirmState));
+      confirmLogs.push(mapConfirmLog_(res.confirmLog));
       contentEl.value = '';
       onAdded();
     }catch(err){
@@ -810,7 +818,9 @@ function attachReportRowHandlers(rootEl, onOpen, onDeleted){
       const id = row.dataset.id;
       try{
         await gasPost({ action:'deleteReport', id });
-        await refetchAll();
+        reports = reports.filter(r=>r.id!==id);
+        confirmLogs = confirmLogs.filter(l=>l.reportId!==id);
+        confirmStates = confirmStates.filter(s=>s.reportId!==id);
         onDeleted();
       }catch(err){
         console.error('報告の削除に失敗しました', err);
@@ -872,8 +882,13 @@ function attachReportDetailHandlers(rootEl, report, onDeleted, rerender){
       const currentlyRead = readByFor(report.id).includes(m);
       const action = currentlyRead ? 'unconfirmReport' : 'confirmReport';
       try{
-        await gasPost({ action, reportId: report.id, confirmedBy: m });
-        await refetchAll();
+        const res = await gasPost({ action, reportId: report.id, confirmedBy: m });
+        upsertConfirmState(mapConfirmState_(res.confirmState));
+        confirmLogs.push(mapConfirmLog_(res.confirmLog));
+        if(res.report){
+          const idx = reports.findIndex(r=>r.id===res.report.id);
+          if(idx>-1) Object.assign(reports[idx], mapReport_(res.report));
+        }
         rerender();
       }catch(err){
         console.error('確認状態の更新に失敗しました', err);
@@ -887,8 +902,13 @@ function attachReportDetailHandlers(rootEl, report, onDeleted, rerender){
     const content = input.value.trim();
     if(!content) return;
     try{
-      await gasPost({ action:'addReportComment', reportId: report.id, author: identity, content });
-      await refetchAll();
+      const res = await gasPost({ action:'addReportComment', reportId: report.id, author: identity, content });
+      upsertConfirmState(mapConfirmState_(res.confirmState));
+      confirmLogs.push(mapConfirmLog_(res.confirmLog));
+      if(res.report){
+        const idx = reports.findIndex(r=>r.id===res.report.id);
+        if(idx>-1) Object.assign(reports[idx], mapReport_(res.report));
+      }
       rerender();
     }catch(err){
       console.error('コメントの送信に失敗しました', err);
@@ -903,7 +923,9 @@ function attachReportDetailHandlers(rootEl, report, onDeleted, rerender){
   if(delBtn) delBtn.addEventListener('click', async () => {
     try{
       await gasPost({ action:'deleteReport', id: report.id });
-      await refetchAll();
+      reports = reports.filter(r=>r.id!==report.id);
+      confirmLogs = confirmLogs.filter(l=>l.reportId!==report.id);
+      confirmStates = confirmStates.filter(s=>s.reportId!==report.id);
       onDeleted();
     }catch(err){
       console.error('報告の削除に失敗しました', err);
